@@ -2,11 +2,15 @@
 import express from 'express';
 import request from 'supertest';
 
-const { warnMock } = vi.hoisted(() => ({ warnMock: vi.fn() }));
+const { warnMock, errorMock } = vi.hoisted(() => ({
+  warnMock: vi.fn(),
+  errorMock: vi.fn(),
+}));
 
 vi.mock('../src/middleware/logger.js', () => ({
   default: {
     warn: warnMock,
+    error: errorMock,
   },
 }));
 
@@ -62,7 +66,7 @@ describe('authFailureMonitor', () => {
   });
 
   it('warns after repeated authentication failures', async () => {
-    const app = createApp(401);
+    const app = createApp(401, '10.0.0.2');
 
     await request(app).get('/test');
     await request(app).get('/test');
@@ -71,7 +75,7 @@ describe('authFailureMonitor', () => {
     expect(warnMock).toHaveBeenCalledTimes(1);
 
     expect(warnMock.mock.calls[0][0]).toMatchObject({
-      ip: '127.0.0.1',
+      ip: '10.0.0.2',
       method: 'GET',
       path: '/test',
       statusCode: 401,
@@ -101,7 +105,7 @@ describe('authFailureMonitor', () => {
     expect(warnMock).not.toHaveBeenCalled();
   });
 
-  it('does not run in production', async () => {
+  it('runs in production', async () => {
     process.env.NODE_ENV = 'production';
 
     const app = createApp(401, '10.0.0.5');
@@ -110,6 +114,6 @@ describe('authFailureMonitor', () => {
     await request(app).get('/test');
     await request(app).get('/test');
 
-    expect(warnMock).not.toHaveBeenCalled();
+    expect(warnMock).toHaveBeenCalledTimes(1);
   });
 });
